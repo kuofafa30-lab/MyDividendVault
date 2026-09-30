@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import yfinance as yf
+import datetime
 
 # 設定網頁為寬版，並換上金庫的圖示
 st.set_page_config(page_title="長期存股金庫", page_icon="🏦", layout="wide")
@@ -8,4 +9,67 @@ st.set_page_config(page_title="長期存股金庫", page_icon="🏦", layout="wi
 st.title("🏦 長期存股金庫 (Dividend Vault)")
 st.write("---")
 
-st.info("🚧 系統建置中：準備載入高殖利率名單與歷年配息數據...")
+# ==========================================
+# 1. 股利估價計算機
+# ==========================================
+st.header("🧮 1. 殖利率估價計算機")
+st.markdown("輸入股票代號，系統將自動抓取近年股利，並推算 **便宜價(6%)**、**合理價(5%)** 與 **昂貴價(4%)**。")
+
+col1, col2 = st.columns([1, 2])
+with col1:
+    ticker_input = st.text_input("請輸入台股代號 (記得加上 .TW，例如玉山金 2884.TW)：", "2884.TW")
+
+if st.button("開始估價", type="primary"):
+    with st.spinner(f"正在計算 {ticker_input} 的估價區間..."):
+        try:
+            stock = yf.Ticker(ticker_input)
+            
+            # 抓取歷史股利資料
+            dividends = stock.dividends
+            
+            if not dividends.empty:
+                # 篩選近 5 年的資料
+                current_year = datetime.datetime.now().year
+                recent_5_years = dividends[dividends.index.year >= current_year - 5]
+                
+                if not recent_5_years.empty:
+                    # 台股通常一年發一次，我們取最近 5 次發放的平均值
+                    recent_divs = recent_5_years.tail(5) 
+                    avg_dividend = recent_divs.mean()
+                    
+                    # 核心估價公式
+                    cheap_price = avg_dividend / 0.06
+                    fair_price = avg_dividend / 0.05
+                    exp_price = avg_dividend / 0.04
+                    
+                    # 抓取最新現價
+                    current_price = stock.fast_info['last_price']
+                    
+                    # --- 顯示結果區塊 ---
+                    st.subheader(f"📊 {ticker_input} 估價結果")
+                    st.write(f"近 5 次平均配息：**{avg_dividend:.2f} 元** ｜ 最新現價：**{current_price:.2f} 元**")
+                    
+                    # 使用 3 個欄位漂亮地顯示價位
+                    c1, c2, c3 = st.columns(3)
+                    c1.success(f"🟢 便宜價 (6% 殖利率)\n\n### {cheap_price:.2f} 元")
+                    c2.warning(f"🟡 合理價 (5% 殖利率)\n\n### {fair_price:.2f} 元")
+                    c3.error(f"🔴 昂貴價 (4% 殖利率)\n\n### {exp_price:.2f} 元")
+                    
+                    # 自動判斷目前的位階
+                    st.write("---")
+                    if current_price <= cheap_price:
+                        st.success(f"💡 戰術判定：目前現價 ({current_price:.2f}) 低於便宜價，是絕佳的長線買點！")
+                    elif current_price <= fair_price:
+                        st.info(f"💡 戰術判定：目前現價 ({current_price:.2f}) 落在便宜與合理價之間，可分批佈局。")
+                    elif current_price <= exp_price:
+                        st.warning(f"💡 戰術判定：目前現價 ({current_price:.2f}) 偏高，建議觀望或用定期定額。")
+                    else:
+                        st.error(f"💡 戰術判定：目前現價 ({current_price:.2f}) 高於昂貴價，千萬別當接盤俠！")
+                        
+                else:
+                    st.warning("找不到近 5 年的股利資料。")
+            else:
+                st.warning("這檔股票似乎沒有穩定發放股利的紀錄！")
+                
+        except Exception as e:
+            st.error(f"發生錯誤，請確認股票代號是否正確：{e}")
