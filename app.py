@@ -176,9 +176,9 @@ if st.button("🚀 啟動 5 年真實回測", type="primary"):
             if not hist.empty:
                 # 將每天的資料，濃縮成「每個月最後一天」的收盤價
                 monthly_data = hist['Close'].resample('ME').last().to_frame()
-                # 計算 6 個月移動平均線 (用來判斷現在是貴還是便宜)
+                # 計算 6 個月移動平均線
                 monthly_data['6MA'] = monthly_data['Close'].rolling(window=6).mean()
-                monthly_data = monthly_data.dropna() # 刪除前面算不出均線的空資料
+                monthly_data = monthly_data.dropna()
                 
                 fixed_shares = 0
                 fixed_cost = 0
@@ -186,17 +186,16 @@ if st.button("🚀 啟動 5 年真實回測", type="primary"):
                 smart_shares = 0
                 smart_cost = 0
                 
-                # 啟動時光機，每個月進行扣款模擬
+                # 啟動時光機
                 for date, row in monthly_data.iterrows():
                     price = row['Close']
                     ma6 = row['6MA']
                     
-                    # --- 策略 1：憨憨存 (定期定額) ---
+                    # 定期定額
                     fixed_shares += base_amt / price
                     fixed_cost += base_amt
                     
-                    # --- 策略 2：聰明存 (定期不定額) ---
-                    # 邏輯：跌破均線5% = 大特價(買2倍)；漲破均線5% = 太貴了(買0.5倍)；其他=正常買
+                    # 定期不定額
                     if price < ma6 * 0.95:
                         invest = base_amt * 2
                     elif price > ma6 * 1.05:
@@ -207,18 +206,16 @@ if st.button("🚀 啟動 5 年真實回測", type="primary"):
                     smart_shares += invest / price
                     smart_cost += invest
                 
-                # 模擬結束，結算最終市值
+                # 結算
                 final_price = monthly_data['Close'].iloc[-1]
                 fixed_value = fixed_shares * final_price
                 smart_value = smart_shares * final_price
                 
-                # 報酬率計算
                 fixed_roi = (fixed_value / fixed_cost - 1) * 100
                 smart_roi = (smart_value / smart_cost - 1) * 100
                 
-                # --- 顯示對決結果 ---
+                # 顯示對決結果
                 st.subheader(f"⚔️ 策略對決結果 (標的：{ticker_bt})")
-                
                 res_col1, res_col2 = st.columns(2)
                 with res_col1:
                     st.info("🤖 策略一：憨憨存 (定期定額)")
@@ -232,34 +229,27 @@ if st.button("🚀 啟動 5 年真實回測", type="primary"):
                 
                 st.write("---")
                 if smart_roi > fixed_roi:
-                    st.success(f"🏆 **結論：** 在這檔股票上，『聰明存』的報酬率擊敗了傳統的定期定額！因為你在大跌時勇敢加碼，累積了大量便宜的股數。")
+                    st.success("🏆 **結論：** 在這檔股票上，『聰明存』的報酬率擊敗了傳統的定期定額！")
                 else:
-                    st.warning(f"🤔 **結論：** 這檔股票一路向上不回頭，導致『聰明存』一直縮手買太少，反而輸給了無腦扣款。這通常發生在極度強勢的飆股上。")
+                    st.warning("🤔 **結論：** 這檔股票一路向上不回頭，導致『聰明存』一直縮手買太少，反而輸給了無腦扣款。")
+                    
             else:
                 st.warning("找不到這檔股票的歷史資料，請確認代號。")
-                
-        # 👇 就是這個 except 剛剛可能被吃掉了！這行非常重要！
         except Exception as e:
-            st.error(f"發生錯誤：{e}")        
+            st.error(f"發生錯誤：{e}")
+
 # ==========================================
 # 4. 🚨 本週雷達鎖定：便宜價黃金名單
 # ==========================================
 st.write("---")
 st.header("🚨 4. 本週雷達鎖定：便宜價黃金名單")
 
-# 檢查機器人是否已經產出檔案
 if os.path.exists("golden_list.csv"):
     df_golden = pd.read_csv("golden_list.csv")
-    
-    # 檢查檔案是否為空（我們在大腦裡設定，如果沒標的會寫入一個"狀態"欄位）
     if "狀態" not in df_golden.columns:
         st.success(f"🎉 探測器回報：本週共發現 {len(df_golden)} 檔落入 6% 殖利率便宜價的優質標的！")
         st.dataframe(df_golden, use_container_width=True, hide_index=True)
     else:
         st.info("🥺 探測器回報：本週市場太熱，沒有股票落入 6% 殖利率的便宜價區間。")
 else:
-    st.warning("⏳ 探測器尚未產出報告。請等待週五的自動掃描，或前往 GitHub 手動觸發。") 
-            else:
-                st.warning("找不到這檔股票的歷史資料，請確認代號。")
-        except Exception as e:
-            st.error(f"發生錯誤：{e}")
+    st.warning("⏳ 探測器尚未產出報告。請等待週五的自動掃描，或前往 GitHub 手動觸發。")
