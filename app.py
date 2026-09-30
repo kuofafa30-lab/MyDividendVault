@@ -91,12 +91,12 @@ if st.button("開始估價", type="primary"):
                 
         except Exception as e:
             st.error(f"發生錯誤，請確認股票代號是否正確：{e}")
-            # ==========================================
-# 2. 經典存股菜單 (新手入門推薦)
+# ==========================================
+# 2. 經典存股菜單 (自動報價版)
 # ==========================================
 st.write("---")
 st.header("📋 2. 經典存股菜單 (不知道存什麼看這裡)")
-st.markdown("不知道該存什麼？可以先從以下台股最經典的『高防禦力』標的開始研究，將代號複製到上方的計算機算算看！")
+st.markdown("不知道該存什麼？可以先從以下台股最經典的標的開始研究。點擊下方按鈕，機器人會為您抓取最新現價！")
 
 # 建立預設的經典存股清單
 default_stocks = [
@@ -108,6 +108,26 @@ default_stocks = [
     {"分類": "🧺 高息 ETF", "代號": "00878.TW", "名稱": "國泰永續高息", "特色": "季配息設計、持股抗跌性強"}
 ]
 
-# 將清單轉換為表格並顯示在網頁上
-df_menu = pd.DataFrame(default_stocks)
-st.dataframe(df_menu, use_container_width=True, hide_index=True)
+# 加入一個更新報價的按鈕
+if st.button("🔄 抓取最新現價"):
+    with st.spinner("機器人正在連線抓取最新報價，請稍候..."):
+        # 用迴圈一檔一檔抓取價格
+        for stock in default_stocks:
+            try:
+                ticker = yf.Ticker(stock["代號"])
+                # 抓取最新現價並四捨五入到小數點後兩位
+                current_price = ticker.fast_info['last_price']
+                stock["最新現價"] = round(current_price, 2)
+            except:
+                stock["最新現價"] = "抓取失敗"
+        
+        # 將清單轉換為表格
+        df_menu = pd.DataFrame(default_stocks)
+        # 重新排列欄位順序，把最新現價排在名稱後面
+        df_menu = df_menu[["分類", "代號", "名稱", "最新現價", "特色"]]
+        st.dataframe(df_menu, use_container_width=True, hide_index=True)
+        st.success("✅ 報價更新完成！你可以將看順眼的代號複製到上方進行估價。")
+else:
+    # 如果還沒按按鈕，先顯示沒有現價的靜態版本
+    df_menu = pd.DataFrame(default_stocks)
+    st.dataframe(df_menu, use_container_width=True, hide_index=True)
