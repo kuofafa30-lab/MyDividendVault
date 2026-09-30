@@ -253,3 +253,65 @@ if os.path.exists("golden_list.csv"):
         st.info("🥺 探測器回報：本週市場太熱，沒有股票落入 6% 殖利率的便宜價區間。")
 else:
     st.warning("⏳ 探測器尚未產出報告。請等待週五的自動掃描，或前往 GitHub 手動觸發。")
+# ==========================================
+# 5. 🌊 歷史殖利率河流圖：一眼看透相對位階
+# ==========================================
+st.write("---")
+st.header("🌊 5. 歷史殖利率河流圖")
+st.markdown("不知道現在算不算便宜？將股價與配息轉化為歷史殖利率趨勢。當藍色折線向上突破橘色的歷史平均線，就是絕佳的潛水買點！")
+
+ticker_river = st.text_input("輸入欲查詢的股票代號 (例如 2912.TW)：", "2912.TW", key="river_ticker")
+
+if st.button("繪製河流圖", type="primary"):
+    with st.spinner(f"正在計算 {ticker_river} 過去 5 年的殖利率水位..."):
+        try:
+            stock = yf.Ticker(ticker_river)
+            hist = stock.history(period="5y")
+            divs = stock.dividends
+            
+            if not hist.empty and not divs.empty:
+                # 1. 抓取每個月月底的收盤價
+                monthly_price = hist['Close'].resample('ME').last()
+                
+                # 2. 建立資料表，並萃取出「年份」
+                df_river = pd.DataFrame({'現價': monthly_price})
+                df_river['年份'] = df_river.index.year
+                
+                # 3. 抓取每年發放的總股利
+                yearly_divs = divs.groupby(divs.index.year).sum()
+                
+                # 4. 把每年的總股利，對應填入每個月的資料中
+                df_river['當年配息'] = df_river['年份'].map(yearly_divs)
+                # 如果今年還沒除息抓不到資料，就暫時用去年的股利來估算
+                df_river['當年配息'] = df_river['當年配息'].ffill() 
+                
+                # 刪除算不出資料的月份
+                df_river = df_river.dropna()
+                
+                # 5. 核心公式：殖利率 = (當年配息 / 月底現價) * 100
+                df_river['殖利率(%)'] = (df_river['當年配息'] / df_river['現價']) * 100
+                
+                # 6. 計算這 5 年的歷史平均殖利率
+                avg_yield = df_river['殖利率(%)'].mean()
+                df_river['歷史平均線'] = avg_yield
+                
+                # --- 顯示結果區塊 ---
+                st.subheader(f"📊 {ticker_river} 過去 5 年殖利率走勢")
+                
+                # 使用 DataFrame 畫出包含兩條線的折線圖
+                chart_data = df_river[['殖利率(%)', '歷史平均線']]
+                st.line_chart(chart_data)
+                
+                # 判斷目前的位階
+                current_yield = df_river['殖利率(%)'].iloc[-1]
+                st.write("---")
+                if current_yield > avg_yield:
+                    st.success(f"💡 **戰術判定：** 目前殖利率 **{current_yield:.2f}%** 高於歷史平均 **{avg_yield:.2f}%**。代表現價跌破了歷史慣性，正處於相對特價的深水區！")
+                else:
+                    st.warning(f"💡 **戰術判定：** 目前殖利率 **{current_yield:.2f}%** 低於歷史平均 **{avg_yield:.2f}%**。代表目前股價偏熱，建議觀望或耐心等待回調。")
+                    
+            else:
+                st.warning("這檔股票缺乏足夠的歷史股價或配息資料，無法繪製河流圖。")
+                
+        except Exception as e:
+            st.error(f"發生錯誤，請確認股票代號是否正確：{e}")
