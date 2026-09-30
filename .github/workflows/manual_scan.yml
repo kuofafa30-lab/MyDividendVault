@@ -1,0 +1,29 @@
+name: 存股海巡探測器
+
+on:
+  workflow_dispatch: # 🎯 關鍵：只保留手動觸發按鈕，先不設定排程！
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+    - name: 取得金庫程式碼
+      uses: actions/checkout@v3
+
+    - name: 安裝 Python 與套件
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    - run: pip install -r requirements.txt
+
+    - name: 啟動海巡大腦 (執行 Python)
+      run: python dividend_screener.py
+
+    - name: 將黃金名單存回 GitHub (Commit)
+      run: |
+        git config --local user.name "github-actions[bot]"
+        git config --local user.email "github-actions[bot]@users.noreply.github.com"
+        git add golden_list.csv
+        # 如果名單有更新就存檔，沒更新就印出提示
+        git commit -m "🤖 海巡完成：更新黃金名單" || echo "名單無變動"
+        git push
