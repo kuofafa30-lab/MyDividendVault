@@ -1,7 +1,15 @@
 name: 存股海巡探測器
 
 on:
-  workflow_dispatch: # 🎯 關鍵：只保留手動觸發按鈕，先不設定排程！
+  workflow_dispatch: # 保留手動按鈕，讓你隨時想按都可以！
+  schedule:
+    # 台灣時間每週五 14:00 (UTC 06:00) 自動執行
+    - cron: '0 6 * * 5'
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    # ... (下方的 steps 維持原樣完全不用動！)
 
 jobs:
   scan:
