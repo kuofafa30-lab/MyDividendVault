@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import yfinance as yf
 import datetime
+import os
 
 # 設定網頁為寬版，並換上金庫的圖示
 st.set_page_config(page_title="長期存股金庫", page_icon="🏦", layout="wide")
@@ -234,7 +235,24 @@ if st.button("🚀 啟動 5 年真實回測", type="primary"):
                     st.success(f"🏆 **結論：** 在這檔股票上，『聰明存』的報酬率擊敗了傳統的定期定額！因為你在大跌時勇敢加碼，累積了大量便宜的股數。")
                 else:
                     st.warning(f"🤔 **結論：** 這檔股票一路向上不回頭，導致『聰明存』一直縮手買太少，反而輸給了無腦扣款。這通常發生在極度強勢的飆股上。")
-                    
+# ==========================================
+# 4. 🚨 本週雷達鎖定：便宜價黃金名單
+# ==========================================
+st.write("---")
+st.header("🚨 4. 本週雷達鎖定：便宜價黃金名單")
+
+# 檢查機器人是否已經產出檔案
+if os.path.exists("golden_list.csv"):
+    df_golden = pd.read_csv("golden_list.csv")
+    
+    # 檢查檔案是否為空（我們在大腦裡設定，如果沒標的會寫入一個"狀態"欄位）
+    if "狀態" not in df_golden.columns:
+        st.success(f"🎉 探測器回報：本週共發現 {len(df_golden)} 檔落入 6% 殖利率便宜價的優質標的！")
+        st.dataframe(df_golden, use_container_width=True, hide_index=True)
+    else:
+        st.info("🥺 探測器回報：本週市場太熱，沒有股票落入 6% 殖利率的便宜價區間。")
+else:
+    st.warning("⏳ 探測器尚未產出報告。請等待週五的自動掃描，或前往 GitHub 手動觸發。") 
             else:
                 st.warning("找不到這檔股票的歷史資料，請確認代號。")
         except Exception as e:
