@@ -154,3 +154,88 @@ else:
     # 如果還沒按按鈕，先顯示沒有現價的靜態版本
     df_menu = pd.DataFrame(default_stocks)
     st.dataframe(df_menu, use_container_width=True, hide_index=True)
+# ==========================================
+# 3. 🧠 智慧存股：定期不定額 (Smart DCA) 真實回測
+# ==========================================
+st.write("---")
+st.header("🧠 3. 智慧存股：定期不定額 (真實回測)")
+st.markdown("不想無腦扣款？來回測看看「價低買多、價高買少」的威力！我們以過去 5 年的真實歷史股價來對決。")
+
+col_a, col_b = st.columns([1, 2])
+with col_a:
+    ticker_bt = st.text_input("輸入回測代號 (例如 0050.TW)：", "00878.TW", key="bt_ticker")
+    base_amt = st.number_input("每月基準扣款 (元)", min_value=1000, value=10000, step=1000)
+
+if st.button("🚀 啟動 5 年真實回測", type="primary"):
+    with st.spinner(f"正在讀取 {ticker_bt} 過去 5 年的真實股價與計算技術指標..."):
+        try:
+            # 抓取過去 5 年的歷史資料
+            hist = yf.Ticker(ticker_bt).history(period="5y")
+            
+            if not hist.empty:
+                # 將每天的資料，濃縮成「每個月最後一天」的收盤價
+                monthly_data = hist['Close'].resample('ME').last().to_frame()
+                # 計算 6 個月移動平均線 (用來判斷現在是貴還是便宜)
+                monthly_data['6MA'] = monthly_data['Close'].rolling(window=6).mean()
+                monthly_data = monthly_data.dropna() # 刪除前面算不出均線的空資料
+                
+                fixed_shares = 0
+                fixed_cost = 0
+                
+                smart_shares = 0
+                smart_cost = 0
+                
+                # 啟動時光機，每個月進行扣款模擬
+                for date, row in monthly_data.iterrows():
+                    price = row['Close']
+                    ma6 = row['6MA']
+                    
+                    # --- 策略 1：憨憨存 (定期定額) ---
+                    fixed_shares += base_amt / price
+                    fixed_cost += base_amt
+                    
+                    # --- 策略 2：聰明存 (定期不定額) ---
+                    # 邏輯：跌破均線5% = 大特價(買2倍)；漲破均線5% = 太貴了(買0.5倍)；其他=正常買
+                    if price < ma6 * 0.95:
+                        invest = base_amt * 2
+                    elif price > ma6 * 1.05:
+                        invest = base_amt * 0.5
+                    else:
+                        invest = base_amt
+                        
+                    smart_shares += invest / price
+                    smart_cost += invest
+                
+                # 模擬結束，結算最終市值
+                final_price = monthly_data['Close'].iloc[-1]
+                fixed_value = fixed_shares * final_price
+                smart_value = smart_shares * final_price
+                
+                # 報酬率計算
+                fixed_roi = (fixed_value / fixed_cost - 1) * 100
+                smart_roi = (smart_value / smart_cost - 1) * 100
+                
+                # --- 顯示對決結果 ---
+                st.subheader(f"⚔️ 策略對決結果 (標的：{ticker_bt})")
+                
+                res_col1, res_col2 = st.columns(2)
+                with res_col1:
+                    st.info("🤖 策略一：憨憨存 (定期定額)")
+                    st.metric("累積投入本金", f"${int(fixed_cost):,}")
+                    st.metric("最終總市值", f"${int(fixed_value):,}", f"{fixed_roi:.2f}% (總報酬)")
+                    
+                with res_col2:
+                    st.success("🧠 策略二：聰明存 (價低買多、價高買少)")
+                    st.metric("累積投入本金", f"${int(smart_cost):,}")
+                    st.metric("最終總市值", f"${int(smart_value):,}", f"{smart_roi:.2f}% (總報酬)")
+                
+                st.write("---")
+                if smart_roi > fixed_roi:
+                    st.success(f"🏆 **結論：** 在這檔股票上，『聰明存』的報酬率擊敗了傳統的定期定額！因為你在大跌時勇敢加碼，累積了大量便宜的股數。")
+                else:
+                    st.warning(f"🤔 **結論：** 這檔股票一路向上不回頭，導致『聰明存』一直縮手買太少，反而輸給了無腦扣款。這通常發生在極度強勢的飆股上。")
+                    
+            else:
+                st.warning("找不到這檔股票的歷史資料，請確認代號。")
+        except Exception as e:
+            st.error(f"發生錯誤：{e}")
