@@ -6,6 +6,29 @@ import datetime
 # 設定網頁為寬版，並換上金庫的圖示
 st.set_page_config(page_title="長期存股金庫", page_icon="🏦", layout="wide")
 
+# ==========================================
+# 🔒 終極防護：金庫密碼鎖
+# ==========================================
+def check_password():
+    if "logged_in" not in st.session_state:
+        st.session_state["logged_in"] = False
+
+    if not st.session_state["logged_in"]:
+        st.title("🔒 存股金庫 - 系統登入")
+        pwd = st.text_input("請輸入金庫通行密碼：", type="password")
+        if st.button("解鎖大門", type="primary"):
+            if pwd == st.secrets["VAULT_PASSWORD"]:
+                st.session_state["logged_in"] = True
+                st.rerun() # 密碼正確，自動重整進入主畫面
+            else:
+                st.error("❌ 密碼錯誤，拒絕存取！")
+        return False
+    return True
+
+# 執行攔截：如果密碼沒過，就強制停止執行後面的所有程式碼！
+if not check_password():
+    st.stop()
+
 st.title("🏦 長期存股金庫 (Dividend Vault)")
 st.write("---")
 
