@@ -66,33 +66,28 @@ if st.button("開始估價", type="primary"):
                     else:
                         st.error(f"💡 戰術判定：目前現價 ({current_price:.2f}) 高於昂貴價，千萬別當接盤俠！")
                         
+                    # ==========================================
+                    # 🌟 新增：近 10 年配息長條圖
+                    # ==========================================
+                    st.write("---")
+                    st.subheader("📈 近 10 年現金股利發放趨勢")
+                    
+                    # 從一開始抓到的 dividends 裡，篩選出近 10 年的資料
+                    recent_10_years = dividends[dividends.index.year > current_year - 10]
+                    
+                    if not recent_10_years.empty:
+                        # 💡 關鍵巧思：將同年度的股利加總 (對付季配息、半年配息的股票)
+                        yearly_divs = recent_10_years.groupby(recent_10_years.index.year).sum()
+                        
+                        # 直接召喚 Streamlit 的長條圖魔法
+                        st.bar_chart(yearly_divs)
+                    else:
+                        st.info("沒有足夠的 10 年歷史配息資料可供繪製圖表。")
+                        
                 else:
                     st.warning("找不到近 5 年的股利資料。")
             else:
                 st.warning("這檔股票似乎沒有穩定發放股利的紀錄！")
-            else:
-                st.error(f"💡 戰術判定：目前現價 ({current_price:.2f}) 高於昂貴價，千萬別當接盤俠！")
-                        
-            # ==========================================
-            # 🌟 新增：近 10 年配息長條圖
-            # ==========================================
-                st.write("---")
-                st.subheader("📈 近 10 年現金股利發放趨勢")
-                    
-                # 從一開始抓到的 dividends 裡，篩選出近 10 年的資料
-                recent_10_years = dividends[dividends.index.year > current_year - 10]
-                    
-                if not recent_10_years.empty:
-                   # 💡 關鍵巧思：將同年度的股利加總 (對付季配息、半年配息的股票)
-                   yearly_divs = recent_10_years.groupby(recent_10_years.index.year).sum()
-                        
-                   # 直接召喚 Streamlit 的長條圖魔法
-                        st.bar_chart(yearly_divs)
-            else:
-                st.info("沒有足夠的 10 年歷史配息資料可供繪製圖表。")
-                        
-            else:
-                st.warning("找不到近 5 年的股利資料。")
                 
         except Exception as e:
             st.error(f"發生錯誤，請確認股票代號是否正確：{e}")
