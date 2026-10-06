@@ -233,8 +233,11 @@ elif system_menu == "📈 波段戰情室 (短期動能)":
 
     # --- 右側主畫面：個股 K 線與戰術背包 ---
     stock_info_b = yf.Ticker(selected_target)
-    ch_name_b = TW_NAMES.get(selected_target, stock_info_b.info.get('shortName', selected_target))
     
+    # ✅ 升級：直接比對我們自己寫的 TW_NAMES 字典，避開 yfinance info 的快取地雷
+    ch_name_b = TW_NAMES.get(selected_target, selected_target.replace(".TW", ""))
+    
+    # ✅ 確保表頭是綁定變數，隨著你輸入的代號連動改變
     st.header(f"📈 {ch_name_b} ({selected_target})")
     
     tab_kline, tab_bp = st.tabs(["📊 專業 K 線與動能解析", "🎒 戰術背包 (Google 雲端同步)"])
