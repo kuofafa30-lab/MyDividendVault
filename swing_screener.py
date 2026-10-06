@@ -111,12 +111,28 @@ except Exception as e:
 msg += "="*20 + "\n"
 
 # ==========================================
-# 2. 執行狙擊雷達掃描 (維持原本的功能)
+# 2. 執行狙擊雷達掃描 (改為讀取雲端雷達名單)
 # ==========================================
 msg += "🚀 [爆量狙擊雷達]\n"
-radar_tickers = ["2330.TW", "2317.TW", "2454.TW", "3231.TW", "2382.TW", "2603.TW", "3008.TW"]
+radar_tickers = []
 radar_results = []
 
+try:
+    # 🌟 讀取試算表中的「雷達名單」分頁
+    ws_radar = sh.worksheet("雷達名單")
+    radar_records = ws_radar.get_all_records()
+    for row in radar_records:
+        t = auto_tw(row.get("代號", ""))
+        if t: 
+            radar_tickers.append(t)
+            
+    if not radar_tickers:
+        msg += "⚠️ 雷達名單目前為空，請至系統新增。\n"
+        
+except Exception as e:
+    msg += "⚠️ 讀取雷達名單失敗，請確認試算表分頁名稱是否為「雷達名單」。\n"
+
+# 開始掃描 (這段邏輯跟之前一樣)
 for ticker in radar_tickers:
     try:
         hist = yf.Ticker(ticker).history(period="3mo")
@@ -128,17 +144,18 @@ for ticker in radar_tickers:
             close, open_p, vol = latest['Close'], latest['Open'], latest['Volume']
             ma20, vol_ma20 = latest['20MA'], latest['20V_MA']
 
+            # 突破月線 且 爆量2倍 且 收紅K
             if close > ma20 and vol > (vol_ma20 * 2) and close > open_p:
                 ch_name = TW_NAMES.get(ticker, ticker.replace(".TW", ""))
                 radar_results.append(f"🔥 {ch_name} (收: {close:.1f})")
     except:
         pass
 
-if radar_results:
-    msg += "\n".join(radar_results)
-else:
-    msg += "💤 今日無標的符合爆量突破條件。"
-
+if radar_tickers:
+    if radar_results:
+        msg += "\n".join(radar_results)
+    else:
+        msg += "💤 今日無標的符合爆量突破條件。"
 # 發送通知
 if LINE_TOKEN and LINE_USER_ID:
     send_line_message(msg)
