@@ -157,9 +157,9 @@ if radar_tickers:
     else:
         msg += "💤 今日無標的符合爆量突破條件。"
 # ==========================================
-# 3. 執行存股海巡掃描 (雙劍合璧功能)
+# 3. 執行存股海巡掃描 (本土官方 API 升級版)
 # ==========================================
-import datetime
+import requests
 
 msg += "\n\n🏦 [存股海巡探測器]\n"
 div_tickers = []
@@ -170,42 +170,57 @@ try:
     ws_div = sh.worksheet("存股名單")
     div_records = ws_div.get_all_records()
     for row in div_records:
-        t = auto_tw(row.get("代號", ""))
+        t = str(row.get("代號", "")).strip()
         if t: div_tickers.append(t)
 except Exception as e:
     msg += "⚠️ 尚未讀取到「存股名單」分頁，請至試算表建立。\n"
 
+# 🌟 呼叫台灣本土官方開放資料 API (一次性抓取全市場殖利率)
+official_yields = {}
+try:
+    # 上市公司 (證交所)
+    tw_url = "https://openapi.twse.com.tw/v1/exchangeReport/BWIBBU_ALL"
+    for item in requests.get(tw_url, timeout=10).json():
+        official_yields[item['Code']] = item['DividendYield']
+    # 上櫃公司 (櫃買中心)
+    otc_url = "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_peratio_analysis"
+    for item in requests.get(otc_url, timeout=10).json():
+        official_yields[item['SecuritiesCompanyCode']] = item['DividendYield']
+except Exception as e:
+    print(f"官方 API 抓取失敗: {e}")
+
 for ticker in div_tickers:
     try:
-        tk = yf.Ticker(ticker)
-        hist = tk.history(period="1mo")
-        if len(hist) == 0: 
-            continue
-            
-        close = hist['Close'].iloc[-1]
-        ch_name = TW_NAMES.get(ticker, ticker.replace(".TW", ""))
+        # 確保代號是乾淨的數字 (過濾掉 .TW)
+        clean_ticker = ticker.replace(".TW", "").replace(".TWO", "")
+        ch_name = TW_NAMES.get(auto_tw(clean_ticker), clean_ticker)
         
-        # 抓取配息資料 (計算近 365 天內發放的總股息)
-        divs = tk.dividends
-        if not divs.empty:
-            # 移除時區標記避免錯誤，並過濾出近一年的資料
-            divs.index = divs.index.tz_localize(None)
-            cutoff = datetime.datetime.now() - datetime.timedelta(days=365)
-            recent_divs = divs[divs.index >= cutoff]
-            total_div = recent_divs.sum()
-            
-            if close > 0 and total_div > 0:
-                yield_pct = (total_div / close) * 100
-                
-                # 判斷是否達標 (高於 5%)
-                if yield_pct >= TARGET_YIELD:
-                    div_results.append(f"🟢 {ch_name}: {yield_pct:.2f}% (便宜！收:{close:.1f})")
-                else:
-                    div_results.append(f"⚪ {ch_name}: {yield_pct:.2f}% (收:{close:.1f})")
-            else:
-                div_results.append(f"⚪ {ch_name}: 尚無近一年配息紀錄")
+        # 抓取今日收盤價 (維持用 yfinance 最快)
+        tk = yf.Ticker(auto_tw(clean_ticker))
+        hist = tk.history(period="1d")
+        close = hist['Close'].iloc[-1] if not hist.empty else 0
+        
+        # 🌟 從本土 API 字典中精準比對殖利率
+        yield_str = official_yields.get(clean_ticker, "0")
+        
+        # 處理無資料或顯示為 "-" 的情況 (例如 ETF 通常不在證交所此清單內)
+        if yield_str == "-" or not yield_str.replace('.', '', 1).isdigit():
+            yield_pct = 0.0
+            # 針對 ETF 的備案：向 Yahoo 備用欄位抓取年度配息率
+            fallback_yield = tk.info.get("trailingAnnualDividendYield", 0)
+            if fallback_yield:
+                yield_pct = fallback_yield * 100
         else:
-            div_results.append(f"⚪ {ch_name}: 抓不到配息資料")
+            yield_pct = float(yield_str)
+            
+        if close > 0:
+            if yield_pct >= TARGET_YIELD:
+                div_results.append(f"🟢 {ch_name}: {yield_pct:.2f}% (便宜！收:{close:.1f})")
+            elif yield_pct > 0:
+                div_results.append(f"⚪ {ch_name}: {yield_pct:.2f}% (收:{close:.1f})")
+            else:
+                div_results.append(f"⚪ {ch_name}: API 暫無殖利率 (收:{close:.1f})")
+
     except Exception as e:
         pass
 
@@ -213,7 +228,7 @@ if div_tickers:
     if div_results:
         msg += "\n".join(div_results)
     else:
-        msg += "今日存股清單無動靜。"        
+        msg += "今日存股清單無動靜。" 
 # 發送通知
 if LINE_TOKEN and LINE_USER_ID:
     send_line_message(msg)
