@@ -64,7 +64,7 @@ st.sidebar.write("---")
 # =========================================================================
 if system_menu == "🏦 存股金庫 (長期價值)":
     st.sidebar.subheader("📋 存股雷達清單")
-    ticker_list = ["2912", "5903", "2886", "2330", "00878"] # 把預設代號也改乾淨
+    ticker_list = ["2912", "5903", "2886", "2330", "00878", "0050"] # 把預設代號也改乾淨
     
     if os.path.exists("golden_list.csv"):
         df_golden = pd.read_csv("golden_list.csv")
