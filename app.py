@@ -76,8 +76,19 @@ if system_menu == "🏦 存股金庫 (長期價值)":
         else:
             st.sidebar.info("本週無特價股，顯示自選清單。")
             
-    raw_selected = st.sidebar.selectbox("🔍 點擊切換分析標的：", ticker_list)
-    selected_ticker = auto_tw(raw_selected)
+    # --- 🌟 升級：支援任意輸入的下拉選單 ---
+    # 1. 在清單的最上方，插入一個「自行輸入」的專屬選項
+    ticker_list.insert(0, "✍️ 自行輸入代號...")
+    
+    # 2. 顯示下拉式選單
+    raw_selected = st.sidebar.selectbox("🔍 點擊切換或選擇標的：", ticker_list)
+    
+    # 3. 邏輯判斷：如果選了「自行輸入」，就顯示文字輸入框讓他自由打字！
+    if raw_selected == "✍️ 自行輸入代號...":
+        custom_ticker = st.sidebar.text_input("💡 請輸入任意台股代號 (如 2885)：", "2885")
+        selected_ticker = auto_tw(custom_ticker)
+    else:
+        selected_ticker = auto_tw(raw_selected)
 
     st.header(f"🏦 {selected_ticker} 戰情看板")
     tab1, tab2, tab3 = st.tabs(["📊 終端看板 (雙效估價)", "🧠 策略回測 (定期不定額)", "📋 綜合雷達 (菜單與名單)"])
