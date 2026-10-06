@@ -60,47 +60,47 @@ system_menu = st.sidebar.radio(
 )
 st.sidebar.write("---")
 st.sidebar.markdown("---")
-    st.sidebar.subheader("📡 雲端雷達名單管理")
-    try:
-        # 連線並讀取「雷達名單」分頁
-        df_radar = conn.read(worksheet="雷達名單", ttl=0)
-        if df_radar is None or df_radar.empty:
-            df_radar = pd.DataFrame(columns=["代號"])
-        else:
-            df_radar = df_radar.dropna(how="all")
+st.sidebar.subheader("📡 雲端雷達名單管理")
+try:
+    # 連線並讀取「雷達名單」分頁
+    df_radar = conn.read(worksheet="雷達名單", ttl=0)
+    if df_radar is None or df_radar.empty:
+        df_radar = pd.DataFrame(columns=["代號"])
+    else:
+        df_radar = df_radar.dropna(how="all")
 
-        # 顯示目前監控數量
-        st.sidebar.write(f"📋 目前監控中：{len(df_radar)} 檔標的")
-        
-        # 新增雷達標的
-        with st.sidebar.expander("➕ 新增監控標的", expanded=False):
-            new_radar_raw = st.text_input("輸入代號 (如 3008)：", key="add_radar")
-            new_radar = auto_tw(new_radar_raw)
-            if st.button("加入雷達網"):
-                if new_radar:
-                    if new_radar in df_radar["代號"].values:
-                        st.warning("已經在監控名單中囉！")
-                    else:
-                        new_row = pd.DataFrame({"代號": [new_radar]})
-                        df_radar = pd.concat([df_radar, new_row], ignore_index=True)
-                        conn.update(worksheet="雷達名單", data=df_radar)
-                        st.success(f"{new_radar} 已加入！")
-                        st.rerun()
-
-        # 移除雷達標的
-        with st.sidebar.expander("🗑️ 移除監控標的", expanded=False):
-            if not df_radar.empty:
-                del_radar = st.selectbox("選擇要移除的標的：", df_radar["代號"].tolist())
-                if st.button("解除監控"):
-                    df_radar = df_radar[df_radar["代號"] != del_radar]
+    # 顯示目前監控數量
+    st.sidebar.write(f"📋 目前監控中：{len(df_radar)} 檔標的")
+    
+    # 新增雷達標的
+    with st.sidebar.expander("➕ 新增監控標的", expanded=False):
+        new_radar_raw = st.text_input("輸入代號 (如 3008)：", key="add_radar")
+        new_radar = auto_tw(new_radar_raw)
+        if st.button("加入雷達網"):
+            if new_radar:
+                if new_radar in df_radar["代號"].values:
+                    st.warning("已經在監控名單中囉！")
+                else:
+                    new_row = pd.DataFrame({"代號": [new_radar]})
+                    df_radar = pd.concat([df_radar, new_row], ignore_index=True)
                     conn.update(worksheet="雷達名單", data=df_radar)
-                    st.success(f"{del_radar} 已移除！")
+                    st.success(f"{new_radar} 已加入！")
                     st.rerun()
-            else:
-                st.info("目前沒有監控標的")
-                
-    except Exception as e:
-        st.sidebar.error("請先在 Google 試算表建立名為「雷達名單」的分頁，並在 A1 填寫「代號」。")
+
+    # 移除雷達標的
+    with st.sidebar.expander("🗑️ 移除監控標的", expanded=False):
+        if not df_radar.empty:
+            del_radar = st.selectbox("選擇要移除的標的：", df_radar["代號"].tolist())
+            if st.button("解除監控"):
+                df_radar = df_radar[df_radar["代號"] != del_radar]
+                conn.update(worksheet="雷達名單", data=df_radar)
+                st.success(f"{del_radar} 已移除！")
+                st.rerun()
+        else:
+            st.info("目前沒有監控標的")
+            
+except Exception as e:
+    st.sidebar.error("請先在 Google 試算表建立名為「雷達名單」的分頁，並在 A1 填寫「代號」。")
 # =========================================================================
 # 系統 A：存股金庫 (價值投資)
 # =========================================================================
