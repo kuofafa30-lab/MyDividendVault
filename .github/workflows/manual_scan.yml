@@ -21,6 +21,8 @@ jobs:
       - run: pip install -r requirements.txt
 
       - name: 啟動海巡大腦 (執行 Python)
+        env:
+          GCP_CREDENTIALS: ${{ secrets.GCP_CREDENTIALS }}
         run: python dividend_screener.py
 
       - name: 將黃金名單存回 GitHub (Commit)
