@@ -168,7 +168,7 @@ TARGET_YIELD = 5.0  # 🎯 設定你的理想殖利率標準 (目前設為 5%)
 
 try:
     ws_div = sh.worksheet("存股名單")
-    div_records = ws_div.get_all_records()
+    div_records = ws_div.get_all_records(numericise_ignore=["代號"])
     for row in div_records:
         t = str(row.get("代號", "")).strip()
         if t: div_tickers.append(t)
