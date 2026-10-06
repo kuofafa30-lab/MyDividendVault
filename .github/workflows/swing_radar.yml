@@ -1,0 +1,30 @@
+name: 波段雷達與損益戰報
+
+on:
+  schedule:
+    # 台灣時間下午 14:00 (台股剛收盤不久)
+    - cron: '0 6 * * 1-5'
+  workflow_dispatch:
+
+jobs:
+  run-screener:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 取得程式碼
+        uses: actions/checkout@v3
+
+      - name: 設定 Python 環境
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: 安裝所需套件 (新增了 gspread 與 google-auth)
+        run: |
+          pip install yfinance pandas requests gspread google-auth
+
+      - name: 執行波段雷達與 Line 通知
+        env:
+          LINE_NOTIFY_TOKEN: ${{ secrets.LINE_NOTIFY_TOKEN }}
+          GCP_CREDENTIALS: ${{ secrets.GCP_CREDENTIALS }}
+        run: |
+          python swing_screener.py
