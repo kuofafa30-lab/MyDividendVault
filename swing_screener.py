@@ -4,6 +4,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 import yfinance as yf
 import requests
+import time
 
 LINE_TOKEN = os.environ.get("LINE_NOTIFY_TOKEN")
 GCP_JSON = os.environ.get("GCP_CREDENTIALS")
@@ -24,7 +25,18 @@ def auto_tw(ticker):
 def send_line_notify(message):
     url = "https://notify-api.line.me/api/notify"
     headers = {"Authorization": f"Bearer {LINE_TOKEN}"}
-    requests.post(url, headers=headers, data={"message": message})
+
+    # 🌟 新增重試機制 (最多嘗試 3 次)
+    max_retries = 3
+    for i in range(max_retries):
+        try:
+            requests.post(url, headers=headers, data={"message": message})
+            return  # 發送成功就直接結束函數
+        except requests.exceptions.RequestException as e:
+            print(f"發送 Line 失敗 (第 {i+1} 次嘗試): {e}")
+            if i < max_retries - 1:
+                time.sleep(5)  # 等待 5 秒後重試
+    print("❌ 連續 3 次發送 Line 失敗，放棄執行。")
 
 msg = "\n📊 【波段戰情室】每日收盤戰報\n"
 msg += "="*20 + "\n"
