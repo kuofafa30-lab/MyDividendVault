@@ -61,6 +61,8 @@ system_menu = st.sidebar.radio(
 st.sidebar.write("---")
 st.sidebar.markdown("---")
 st.sidebar.subheader("📡 雲端雷達名單管理")
+from streamlit_gsheets import GSheetsConnection
+conn = st.connection("gsheets", type=GSheetsConnection)
 try:
     # 連線並讀取「雷達名單」分頁
     df_radar = conn.read(worksheet="雷達名單", ttl=0)
