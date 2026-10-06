@@ -17,14 +17,23 @@ def check_password():
 
     if not st.session_state["logged_in"]:
         st.title("🔒 量化終端機 - 系統登入")
-        pwd = st.text_input("請輸入通行密碼：", type="password")
-        if st.button("解鎖大門", type="primary"):
-            if pwd == st.secrets["VAULT_PASSWORD"]:
-                st.session_state["logged_in"] = True
-                st.rerun() 
-            else:
-                st.error("❌ 密碼錯誤，拒絕存取！")
+        
+        # 🌟 建立專屬登入表單，支援 Enter 鍵快捷送出
+        with st.form("login_form"):
+            pwd = st.text_input("請輸入通行密碼：", type="password")
+            
+            # 這裡把原本的 st.button 替換成 st.form_submit_button
+            submitted = st.form_submit_button("解鎖大門", type="primary")
+            
+            # 判斷是否點擊了按鈕或按下了 Enter
+            if submitted:
+                if pwd == st.secrets["VAULT_PASSWORD"]:
+                    st.session_state["logged_in"] = True
+                    st.rerun()
+                else:
+                    st.error("❌ 密碼錯誤，拒絕存取！")
         return False
+        
     return True
 
 if not check_password():
