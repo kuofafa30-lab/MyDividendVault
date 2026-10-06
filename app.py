@@ -3,14 +3,14 @@ import pandas as pd
 import yfinance as yf
 import datetime
 import os
-import plotly.graph_objects as go  # 🌟 新增的專業 K 線圖套件
+import plotly.graph_objects as go
+from streamlit_gsheets import GSheetsConnection  # 🌟 新增的 Google Sheets 連線套件
 
-# 設定網頁為寬版
+# ==========================================
+# 0. 網頁初始設定與金庫密碼鎖
+# ==========================================
 st.set_page_config(page_title="量化交易終端機", page_icon="👨‍💻", layout="wide")
 
-# ==========================================
-# 🔒 金庫密碼鎖
-# ==========================================
 def check_password():
     if "logged_in" not in st.session_state:
         st.session_state["logged_in"] = False
@@ -31,9 +31,9 @@ if not check_password():
     st.stop()
 
 # ==========================================
-# 🧭 輔助工具箱
+# 🧭 核心輔助工具箱 (防呆與翻譯)
 # ==========================================
-# 1. 自動補上 .TW 的防呆函數
+# 1. 自動補上 .TW 的防呆函數 (讓你輸入 3008 就好)
 def auto_tw(ticker):
     t = str(ticker).strip().upper()
     if not t: return ""
@@ -41,12 +41,13 @@ def auto_tw(ticker):
         return f"{t}.TW"
     return t
 
-# 2. 常見台股中文名稱對照表 (因 yfinance 預設回傳英文，先用字典對應)
+# 2. 專屬台股中文名稱對照表 (把你的持股都加進來了！)
 TW_NAMES = {
     "2330.TW": "台積電", "2317.TW": "鴻海", "2454.TW": "聯發科", 
     "3008.TW": "大立光", "2382.TW": "廣達", "3231.TW": "緯創",
     "2603.TW": "長榮", "2912.TW": "統一超", "5903.TW": "全家",
-    "2886.TW": "兆豐金", "0050.TW": "元大台灣50", "00878.TW": "國泰永續高息"
+    "2886.TW": "兆豐金", "0050.TW": "元大台灣50", "00878.TW": "國泰永續高息",
+    "2025.TW": "千興", "6155.TW": "鈞寶", "6438.TW": "迅得", "8162.TW": "微矽電子-創"
 }
 
 # ==========================================
@@ -60,46 +61,46 @@ system_menu = st.sidebar.radio(
 st.sidebar.write("---")
 
 # =========================================================================
-# 系統 A：存股金庫 (維持原樣)
+# 系統 A：存股金庫 (價值投資)
 # =========================================================================
 if system_menu == "🏦 存股金庫 (長期價值)":
     st.sidebar.subheader("📋 存股雷達清單")
-    ticker_list = ["2912", "5903", "2886", "2330", "00878", "0050"] # 把預設代號也改乾淨
+    
+    # 預設清單加上自訂輸入功能
+    ticker_list = ["2912", "5903", "2886", "2330", "00878"]
     
     if os.path.exists("golden_list.csv"):
         df_golden = pd.read_csv("golden_list.csv")
         if "狀態" not in df_golden.columns:
             st.sidebar.success(f"🔥 雷達本週發現 {len(df_golden)} 檔特價股！")
-            # 把黃金名單的 .TW 去掉顯示比較乾淨
             golden_raw = [t.replace(".TW", "") for t in df_golden['股票代號'].tolist()]
             ticker_list = list(set(ticker_list + golden_raw))
         else:
             st.sidebar.info("本週無特價股，顯示自選清單。")
             
-    # --- 🌟 升級：支援任意輸入的下拉選單 ---
-    # 1. 在清單的最上方，插入一個「自行輸入」的專屬選項
+    # --- 🌟 雙棲輸入法：下拉選單 + 任意輸入 ---
     ticker_list.insert(0, "✍️ 自行輸入代號...")
-    
-    # 2. 顯示下拉式選單
     raw_selected = st.sidebar.selectbox("🔍 點擊切換或選擇標的：", ticker_list)
     
-    # 3. 邏輯判斷：如果選了「自行輸入」，就顯示文字輸入框讓他自由打字！
     if raw_selected == "✍️ 自行輸入代號...":
         custom_ticker = st.sidebar.text_input("💡 請輸入任意台股代號 (如 2885)：", "2885")
         selected_ticker = auto_tw(custom_ticker)
     else:
         selected_ticker = auto_tw(raw_selected)
 
-    st.header(f"🏦 {selected_ticker} 戰情看板")
+    # 取得中文名稱
+    stock_info_a = yf.Ticker(selected_ticker)
+    ch_name_a = TW_NAMES.get(selected_ticker, selected_ticker)
+
+    st.header(f"🏦 {ch_name_a} 戰情看板")
     tab1, tab2, tab3 = st.tabs(["📊 終端看板 (雙效估價)", "🧠 策略回測 (定期不定額)", "📋 綜合雷達 (菜單與名單)"])
     
-    with st.spinner(f"正在載入 {selected_ticker} 數據..."):
+    with st.spinner(f"正在載入 {ch_name_a} 數據..."):
         try:
-            stock = yf.Ticker(selected_ticker)
-            hist = stock.history(period="5y")
-            divs = stock.dividends
+            hist = stock_info_a.history(period="5y")
+            divs = stock_info_a.dividends
             if not hist.empty:
-                current_price = stock.fast_info['last_price']
+                current_price = stock_info_a.fast_info['last_price']
                 monthly_price = hist['Close'].resample('ME').last()
                 df_river = pd.DataFrame({'現價': monthly_price})
                 df_river['年份'] = df_river.index.year
@@ -143,7 +144,7 @@ if system_menu == "🏦 存股金庫 (長期價值)":
                     st.markdown("不想無腦扣款？以過去 5 年真實股價對決「憨憨存」與「聰明存」。")
                     base_amt = st.number_input("每月基準扣款 (元)", min_value=1000, value=10000, step=1000, key="dca_amt")
                     
-                    if st.button(f"🚀 啟動 {selected_ticker} 回測", type="primary"):
+                    if st.button(f"🚀 啟動 {ch_name_a} 回測", type="primary"):
                         monthly_data = hist['Close'].resample('ME').last().to_frame()
                         monthly_data['6MA'] = monthly_data['Close'].rolling(window=6).mean()
                         monthly_data = monthly_data.dropna()
@@ -180,16 +181,13 @@ if system_menu == "🏦 存股金庫 (長期價值)":
 
 
 # =========================================================================
-# 系統 B：波段戰情室 (🔥 終極升級版)
+# 系統 B：波段戰情室 (🔥 Google Sheets 雲端連線版)
 # =========================================================================
 elif system_menu == "📈 波段戰情室 (短期動能)":
     
-    # ----------------------------------------
-    # 左側邊欄：輸入標的與雷達掃描
-    # ----------------------------------------
+    # --- 左側邊欄：輸入標的與雷達掃描 ---
     st.sidebar.subheader("🎯 目標個股分析")
-    # 讓使用者輸入代號 (免加 .TW)
-    raw_target = st.sidebar.text_input("🔍 查詢代號 (免輸入 .tw，如 3008)：", "3008")
+    raw_target = st.sidebar.text_input("🔍 查詢代號 (免加 .tw，如 3008)：", "3008")
     selected_target = auto_tw(raw_target)
 
     st.sidebar.write("---")
@@ -217,13 +215,11 @@ elif system_menu == "📈 波段戰情室 (短期動能)":
                         is_volume_surge = current_vol > (vol_ma20 * 2)
                         is_red_candle = current_price > current_open
 
-                        if is_breakout and is_volume_surge and is_red_candle:
-                            status = "🔥 爆量"
-                        else:
-                            status = "⏳ 潛伏"
+                        status = "🔥 爆量" if (is_breakout and is_volume_surge and is_red_candle) else "⏳ 潛伏"
 
+                        ch_name_radar = TW_NAMES.get(ticker, ticker.replace(".TW", ""))
                         sniper_results.append({
-                            "代號": ticker.replace(".TW", ""),
+                            "名稱(代號)": ch_name_radar,
                             "判定": status,
                             "現價": round(current_price, 2)
                         })
@@ -235,50 +231,35 @@ elif system_menu == "📈 波段戰情室 (短期動能)":
             st.sidebar.success("掃描完成！")
             st.sidebar.dataframe(df_results, use_container_width=True, hide_index=True)
 
-    # ----------------------------------------
-    # 右側主畫面：個股 K 線與戰術背包
-    # ----------------------------------------
-    # 取得中文名稱，若字典找不到則嘗試抓 yf 的預設名，最後預設為代號
-    stock_info = yf.Ticker(selected_target)
-    ch_name = TW_NAMES.get(selected_target, stock_info.info.get('shortName', selected_target))
+    # --- 右側主畫面：個股 K 線與戰術背包 ---
+    stock_info_b = yf.Ticker(selected_target)
+    ch_name_b = TW_NAMES.get(selected_target, stock_info_b.info.get('shortName', selected_target))
     
-    st.header(f"📈 {ch_name} ({selected_target})")
+    st.header(f"📈 {ch_name_b} ({selected_target})")
     
-    tab_kline, tab_bp = st.tabs(["📊 專業 K 線與動能解析", "🎒 戰術背包 (即時庫存)"])
+    tab_kline, tab_bp = st.tabs(["📊 專業 K 線與動能解析", "🎒 戰術背包 (Google 雲端同步)"])
 
-    # --- [分頁 1] 專業 Plotly K 線圖 ---
+    # [分頁 1] 專業 Plotly K 線圖
     with tab_kline:
         with st.spinner("正在繪製高階 K 線圖..."):
             try:
-                hist_k = stock_info.history(period="6mo")
+                hist_k = stock_info_b.history(period="6mo")
                 if not hist_k.empty:
-                    # 計算均線
                     hist_k['20MA'] = hist_k['Close'].rolling(window=20).mean()
                     hist_k['60MA'] = hist_k['Close'].rolling(window=60).mean()
                     
-                    # 建立 Plotly 圖表物件
                     fig = go.Figure()
-                    
-                    # 畫 K 線 (設定台股專屬顏色：紅漲綠跌)
                     fig.add_trace(go.Candlestick(x=hist_k.index,
                                     open=hist_k['Open'], high=hist_k['High'],
                                     low=hist_k['Low'], close=hist_k['Close'],
-                                    name='K線',
-                                    increasing_line_color='#FF4136', # 台股紅漲
-                                    decreasing_line_color='#2ECC40'  # 台股綠跌
-                                    ))
+                                    name='K線', increasing_line_color='#FF4136', decreasing_line_color='#2ECC40'))
                     
-                    # 加入均線
                     fig.add_trace(go.Scatter(x=hist_k.index, y=hist_k['20MA'], line=dict(color='orange', width=1.5), name='月線 (20MA)'))
                     fig.add_trace(go.Scatter(x=hist_k.index, y=hist_k['60MA'], line=dict(color='cyan', width=1.5), name='季線 (60MA)'))
                     
-                    # 隱藏下方的 range slider 讓畫面更大，並使用暗色主題
                     fig.update_layout(xaxis_rangeslider_visible=False, template="plotly_dark", height=450, margin=dict(l=0, r=0, t=30, b=0))
-                    
-                    # 將互動圖表顯示在網頁上
                     st.plotly_chart(fig, use_container_width=True)
                     
-                    # 下方顯示當前量價動能狀態
                     latest_k = hist_k.iloc[-1]
                     st.write("---")
                     col_k1, col_k2, col_k3 = st.columns(3)
@@ -294,36 +275,46 @@ elif system_menu == "📈 波段戰情室 (短期動能)":
             except Exception as e:
                 st.error(f"繪圖發生錯誤：{e}")
 
-    # --- [分頁 2] 戰術背包 (維持真實損益功能) ---
+    # [分頁 2] 戰術背包 (🚀 串接 Google 試算表)
     with tab_bp:
-        backpack_file = "tactical_backpack.csv"
-        if os.path.exists(backpack_file):
-            df_bp = pd.read_csv(backpack_file)
-            if "股數" not in df_bp.columns:
-                df_bp["股數"] = 1000
-        else:
+        try:
+            # 建立與 Google Sheets 的連線
+            conn = st.connection("gsheets", type=GSheetsConnection)
+            # 讀取試算表 (ttl=0 代表不快取，每次都抓最新)
+            df_bp = conn.read(ttl=0)
+            
+            # 若為空表，建立預設 DataFrame
+            if df_bp is None or df_bp.empty:
+                df_bp = pd.DataFrame(columns=["代號", "買進成本", "股數"])
+            else:
+                df_bp = df_bp.dropna(how="all") # 清除完全空白的行
+                
+        except Exception as e:
+            st.error(f"連線 Google 試算表失敗，請檢查 Secrets 權限或網路：{e}")
             df_bp = pd.DataFrame(columns=["代號", "買進成本", "股數"])
 
-        st.subheader("🎒 真實庫存損益")
+        st.subheader("🎒 真實庫存損益 (已連線 Google 雲端)")
         col_add, col_close = st.columns(2)
         
         with col_add:
-            with st.expander("➕ 新增實際持股", expanded=False):
-                # 這裡也免加 .TW
+            with st.expander("➕ 新增實際持股 (免加 .tw)", expanded=False):
                 new_raw = st.text_input("輸入股票代號 (如 3008)：", key="add_ticker")
                 new_ticker = auto_tw(new_raw)
                 new_cost = st.number_input("實際成交均價：", min_value=0.0, step=1.0, format="%.2f")
                 new_qty = st.number_input("持有股數 (1張 = 1000)：", min_value=1, value=1000, step=1)
                 
-                if st.button("📥 寫入背包"):
+                if st.button("📥 寫入雲端金庫"):
                     if new_ticker:
                         if new_ticker in df_bp["代號"].values:
                             st.warning("這檔股票已經在背包裡了！")
                         else:
                             new_row = pd.DataFrame({"代號": [new_ticker], "買進成本": [new_cost], "股數": [new_qty]})
                             df_bp = pd.concat([df_bp, new_row], ignore_index=True)
-                            df_bp.to_csv(backpack_file, index=False, encoding="utf-8-sig")
-                            st.success(f"{new_ticker} ({new_qty}股) 已成功入庫！")
+                            
+                            # ✨ 直接回寫至 Google 試算表
+                            conn.update(data=df_bp)
+                            
+                            st.success(f"{new_ticker} ({new_qty}股) 已成功寫入 Google 試算表！")
                             st.rerun()
 
         with col_close:
@@ -331,13 +322,16 @@ elif system_menu == "📈 波段戰情室 (短期動能)":
                 if not df_bp.empty:
                     close_ticker = st.selectbox("選擇要平倉的標的：", df_bp["代號"].tolist())
                     if st.button("💥 確認平倉"):
+                        # 過濾掉要平倉的標的，並回寫
                         df_bp = df_bp[df_bp["代號"] != close_ticker]
-                        df_bp.to_csv(backpack_file, index=False, encoding="utf-8-sig")
-                        st.success(f"{close_ticker} 已平倉移除！")
+                        conn.update(data=df_bp)
+                        
+                        st.success(f"{close_ticker} 已平倉並從雲端移除！")
                         st.rerun()
                 else:
                     st.info("背包空空如也。")
 
+        # 顯示即時報價與損益
         if not df_bp.empty:
             bp_results = []
             with st.spinner("抓取庫存即時報價..."):
@@ -353,7 +347,6 @@ elif system_menu == "📈 波段戰情室 (短期動能)":
                         pnl_pct = ((curr_price / cost) - 1) * 100
                         pnl_amt = (curr_price - cost) * qty
                         
-                        # 把代號的 .TW 拿掉，並嘗試加上中文名
                         ch_name_bp = TW_NAMES.get(ticker, ticker.replace(".TW", ""))
                         
                         bp_results.append({
