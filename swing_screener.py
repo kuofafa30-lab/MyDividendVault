@@ -156,7 +156,64 @@ if radar_tickers:
         msg += "\n".join(radar_results)
     else:
         msg += "💤 今日無標的符合爆量突破條件。"
+# ==========================================
+# 3. 執行存股海巡掃描 (雙劍合璧功能)
+# ==========================================
+import datetime
+
+msg += "\n\n🏦 [存股海巡探測器]\n"
+div_tickers = []
+div_results = []
+TARGET_YIELD = 5.0  # 🎯 設定你的理想殖利率標準 (目前設為 5%)
+
+try:
+    ws_div = sh.worksheet("存股名單")
+    div_records = ws_div.get_all_records()
+    for row in div_records:
+        t = auto_tw(row.get("代號", ""))
+        if t: div_tickers.append(t)
+except Exception as e:
+    msg += "⚠️ 尚未讀取到「存股名單」分頁，請至試算表建立。\n"
+
+for ticker in div_tickers:
+    try:
+        tk = yf.Ticker(ticker)
+        hist = tk.history(period="1mo")
+        if len(hist) == 0: 
+            continue
+            
+        close = hist['Close'].iloc[-1]
+        ch_name = TW_NAMES.get(ticker, ticker.replace(".TW", ""))
         
+        # 抓取配息資料 (計算近 365 天內發放的總股息)
+        divs = tk.dividends
+        if not divs.empty:
+            # 移除時區標記避免錯誤，並過濾出近一年的資料
+            divs.index = divs.index.tz_localize(None)
+            cutoff = datetime.datetime.now() - datetime.timedelta(days=365)
+            recent_divs = divs[divs.index >= cutoff]
+            total_div = recent_divs.sum()
+            
+            if close > 0 and total_div > 0:
+                yield_pct = (total_div / close) * 100
+                
+                # 判斷是否達標 (高於 5%)
+                if yield_pct >= TARGET_YIELD:
+                    div_results.append(f"🟢 {ch_name}: {yield_pct:.2f}% (便宜！收:{close:.1f})")
+                else:
+                    div_results.append(f"⚪ {ch_name}: {yield_pct:.2f}% (收:{close:.1f})")
+            else:
+                div_results.append(f"⚪ {ch_name}: 尚無近一年配息紀錄")
+        else:
+            div_results.append(f"⚪ {ch_name}: 抓不到配息資料")
+    except Exception as e:
+        pass
+
+if div_tickers:
+    if div_results:
+        msg += "\n".join(div_results)
+    else:
+        msg += "今日存股清單無動靜。"        
 # 發送通知
 if LINE_TOKEN and LINE_USER_ID:
     send_line_message(msg)
