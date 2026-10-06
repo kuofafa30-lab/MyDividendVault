@@ -156,6 +156,7 @@ if radar_tickers:
         msg += "\n".join(radar_results)
     else:
         msg += "💤 今日無標的符合爆量突破條件。"
+        
 # 發送通知
 if LINE_TOKEN and LINE_USER_ID:
     send_line_message(msg)
