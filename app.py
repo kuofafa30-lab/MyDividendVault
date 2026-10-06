@@ -240,7 +240,7 @@ elif system_menu == "📈 波段戰情室 (短期動能)":
     # ✅ 確保表頭是綁定變數，隨著你輸入的代號連動改變
     st.header(f"📈 {ch_name_b} ({selected_target})")
     
-    tab_kline, tab_bp = st.tabs(["📊 專業 K 線與動能解析", "🎒 戰術背包 (Google 雲端同步)"])
+    tab_kline, tab_bp = st.tabs(["📊 專業 K 線與動能解析", "🎒 戰術背包"])
 
     # [分頁 1] 專業 Plotly K 線圖
     with tab_kline:
@@ -300,7 +300,7 @@ elif system_menu == "📈 波段戰情室 (短期動能)":
         col_add, col_close = st.columns(2)
         
         with col_add:
-            with st.expander("➕ 新增實際持股 (免加 .tw)", expanded=False):
+            with st.expander("➕ 新增實際持股", expanded=False):
                 new_raw = st.text_input("輸入股票代號 (如 3008)：", key="add_ticker")
                 new_ticker = auto_tw(new_raw)
                 new_cost = st.number_input("實際成交均價：", min_value=0.0, step=1.0, format="%.2f")
