@@ -4,7 +4,7 @@ import yfinance as yf
 import datetime
 import os
 
-# 設定網頁為寬版，並換上金庫的圖示
+# 設定網頁為寬版，並換上圖示
 st.set_page_config(page_title="量化交易終端機", page_icon="👨‍💻", layout="wide")
 
 # ==========================================
@@ -43,29 +43,22 @@ st.sidebar.write("---")
 # 系統 A：存股金庫 (專業終端機版面)
 # ==========================================
 if system_menu == "🏦 存股金庫 (長期價值)":
-    
-    # --- 1. 左側邊欄：雷達清單與選股器 ---
     st.sidebar.subheader("📋 存股雷達清單")
     
-    # 讀取黃金名單
     ticker_list = ["2912.TW", "5903.TW", "2886.TW", "2330.TW", "00878.TW"]
     if os.path.exists("golden_list.csv"):
         df_golden = pd.read_csv("golden_list.csv")
         if "狀態" not in df_golden.columns:
             st.sidebar.success(f"🔥 雷達本週發現 {len(df_golden)} 檔特價股！")
-            # 將黃金名單加入選單，並移除重複項
             ticker_list = list(set(ticker_list + df_golden['股票代號'].tolist()))
         else:
             st.sidebar.info("本週無特價股，顯示自選清單。")
             
-    # 左側下拉選單：只要在這裡選，右邊的所有圖表都會跟著變！
     selected_ticker = st.sidebar.selectbox("🔍 點擊切換分析標的：", ticker_list)
 
-    # --- 2. 右側主畫面：建立三大分頁 ---
     st.header(f"🏦 {selected_ticker} 戰情看板")
     tab1, tab2, tab3 = st.tabs(["📊 終端看板 (雙效估價)", "🧠 策略回測 (定期不定額)", "📋 綜合雷達 (菜單與名單)"])
     
-    # 預先抓取共用資料
     with st.spinner(f"正在載入 {selected_ticker} 終端機數據..."):
         try:
             stock = yf.Ticker(selected_ticker)
@@ -77,7 +70,6 @@ if system_menu == "🏦 存股金庫 (長期價值)":
                 df_river = pd.DataFrame({'現價': monthly_price})
                 df_river['年份'] = df_river.index.year
                 
-                # 計算配息與殖利率
                 current_year = datetime.datetime.now().year
                 recent_5_years_div = divs[divs.index.year >= current_year - 5]
                 avg_div = recent_5_years_div.tail(5).mean() if not divs.empty else 0
@@ -93,9 +85,6 @@ if system_menu == "🏦 存股金庫 (長期價值)":
                 else:
                     hist_avg_yield = 0
 
-                # ----------------------------------------
-                # [分頁 1] 終端看板：河流圖與估價面板
-                # ----------------------------------------
                 with tab1:
                     if not divs.empty:
                         st.line_chart(df_river[['殖利率(%)', '歷史均線']], height=350)
@@ -122,12 +111,8 @@ if system_menu == "🏦 存股金庫 (長期價值)":
                     col_b.metric("合理價 (5%)", f"{(avg_div / 0.05):.2f}" if avg_div > 0 else "-")
                     col_c.metric("昂貴價 (4%)", f"{(avg_div / 0.04):.2f}" if avg_div > 0 else "-")
 
-                # ----------------------------------------
-                # [分頁 2] 策略回測：定期不定額
-                # ----------------------------------------
                 with tab2:
                     st.markdown("不想無腦扣款？以過去 5 年真實股價對決「憨憨存」與「聰明存」。")
-                    # 預設載入左側選單的股票
                     base_amt = st.number_input("每月基準扣款 (元)", min_value=1000, value=10000, step=1000, key="dca_amt")
                     
                     if st.button(f"🚀 啟動 {selected_ticker} 5 年真實回測", type="primary"):
@@ -139,12 +124,9 @@ if system_menu == "🏦 存股金庫 (長期價值)":
                         
                         for date, row in monthly_data.iterrows():
                             price, ma6 = row['Close'], row['6MA']
-                            
-                            # 定期定額
                             fixed_shares += base_amt / price
                             fixed_cost += base_amt
                             
-                            # 定期不定額
                             invest = base_amt * 2 if price < ma6 * 0.95 else (base_amt * 0.5 if price > ma6 * 1.05 else base_amt)
                             smart_shares += invest / price
                             smart_cost += invest
@@ -161,9 +143,6 @@ if system_menu == "🏦 存股金庫 (長期價值)":
                             st.success("🧠 策略二：聰明存 (價低買多)")
                             st.metric("最終總市值", f"${int(smart_shares * final_price):,}", f"{smart_roi:.2f}%")
 
-                # ----------------------------------------
-                # [分頁 3] 綜合雷達：經典菜單與黃金名單
-                # ----------------------------------------
                 with tab3:
                     st.subheader("🚨 本週雷達鎖定：黃金名單")
                     if os.path.exists("golden_list.csv") and "狀態" not in df_golden.columns:
@@ -185,9 +164,155 @@ if system_menu == "🏦 存股金庫 (長期價值)":
         except Exception as e:
             st.error(f"發生錯誤：{e}")
 
+
 # ==========================================
-# 系統 B：波段戰情室
+# 系統 B：波段戰情室 (短期動能)
 # ==========================================
 elif system_menu == "📈 波段戰情室 (短期動能)":
     st.title("📈 波段戰情室 (Swing Trading)")
-    st.markdown("這裡是波段交易的版面，未來可將您寫好的均線突破策略貼在這裡。")
+    
+    # ----------------------------------------
+    # [區塊 1] 戰術背包：真實損益監控
+    # ----------------------------------------
+    backpack_file = "tactical_backpack.csv"
+    
+    if os.path.exists(backpack_file):
+        df_bp = pd.read_csv(backpack_file)
+        # 自動防呆升級：如果舊檔案沒有股數欄位，預設補上 1000 股
+        if "股數" not in df_bp.columns:
+            df_bp["股數"] = 1000
+    else:
+        df_bp = pd.DataFrame(columns=["代號", "買進成本", "股數"])
+
+    st.subheader("🎒 戰術背包 (即時損益監控)")
+    col_add, col_close = st.columns(2)
+    
+    with col_add:
+        with st.expander("➕ 新增實際持股 (買進後填寫)", expanded=False):
+            new_ticker = st.text_input("股票代號 (記得加 .TW，如 3008.TW)：", key="add_ticker")
+            new_cost = st.number_input("實際成交均價：", min_value=0.0, step=1.0, format="%.2f")
+            # 🌟 新增的股數欄位！
+            new_qty = st.number_input("持有股數 (1張 = 1000)：", min_value=1, value=1000, step=1)
+            
+            if st.button("📥 寫入背包"):
+                if new_ticker:
+                    if new_ticker in df_bp["代號"].values:
+                        st.warning("這檔股票已經在背包裡了！")
+                    else:
+                        new_row = pd.DataFrame({"代號": [new_ticker], "買進成本": [new_cost], "股數": [new_qty]})
+                        df_bp = pd.concat([df_bp, new_row], ignore_index=True)
+                        df_bp.to_csv(backpack_file, index=False, encoding="utf-8-sig")
+                        st.success(f"{new_ticker} ({new_qty}股) 已成功入庫！")
+                        st.rerun()
+
+    with col_close:
+        with st.expander("🧨 執行平倉 (賣出後移除)", expanded=False):
+            if not df_bp.empty:
+                close_ticker = st.selectbox("選擇要平倉的標的：", df_bp["代號"].tolist())
+                if st.button("💥 確認平倉"):
+                    df_bp = df_bp[df_bp["代號"] != close_ticker]
+                    df_bp.to_csv(backpack_file, index=False, encoding="utf-8-sig")
+                    st.success(f"{close_ticker} 已平倉移除！")
+                    st.rerun()
+            else:
+                st.info("目前背包空空如也，無須平倉。")
+
+    # 即時監控面板
+    if not df_bp.empty:
+        bp_results = []
+        with st.spinner("正在連線交易所抓取庫存即時報價..."):
+            for index, row in df_bp.iterrows():
+                try:
+                    ticker = row["代號"]
+                    cost = float(row["買進成本"])
+                    qty = int(row.get("股數", 1000))
+                    
+                    stock = yf.Ticker(ticker)
+                    current_price = stock.fast_info['last_price']
+                    
+                    # 計算帳面損益額 (台幣) 與 報酬率 (%)
+                    pnl_pct = ((current_price / cost) - 1) * 100
+                    pnl_amt = (current_price - cost) * qty
+                    
+                    hist = stock.history(period="1mo")
+                    ma20 = hist['Close'].rolling(window=20).mean().iloc[-1] if len(hist) >= 20 else cost * 0.95
+                    
+                    bp_results.append({
+                        "代號": ticker,
+                        "股數": f"{qty:,}",
+                        "買進均價": f"{cost:.2f}",
+                        "最新現價": f"{current_price:.2f}",
+                        "未實現損益(元)": f"{pnl_amt:+,.0f}",  # 顯示正負號的台幣損益
+                        "報酬率(%)": f"{pnl_pct:+.2f}%",
+                        "防守點位(月線)": f"{ma20:.2f}"
+                    })
+                except Exception as e:
+                    bp_results.append({"代號": ticker, "買進均價": cost, "最新現價": "報價失敗"})
+        
+        st.dataframe(pd.DataFrame(bp_results), use_container_width=True, hide_index=True)
+    else:
+        st.info("您的戰術背包目前沒有任何庫存，請等待雷達訊號！")
+
+    st.write("---")
+
+    # ----------------------------------------
+    # [區塊 2] 狙擊雷達：爆量突破掃描
+    # ----------------------------------------
+    st.subheader("🚀 狙擊雷達掃描")
+    st.markdown("使用**「站上 20 日月線」**與**「爆量 (成交量 > 月均量 2 倍)」**來捕捉即將發動的飆股。")
+
+    default_tickers = "2330.TW, 2317.TW, 2454.TW, 3231.TW, 2382.TW, 2603.TW, 3008.TW"
+    user_tickers = st.text_input("🎯 輸入觀察清單 (請以逗號分隔)：", default_tickers)
+
+    if st.button("啟動爆量突破雷達", type="primary"):
+        ticker_list = [t.strip() for t in user_tickers.split(",") if t.strip()]
+        sniper_results = []
+
+        with st.spinner("雷達掃描中，正在比對量價型態..."):
+            for ticker in ticker_list:
+                try:
+                    stock = yf.Ticker(ticker)
+                    hist = stock.history(period="3mo")
+
+                    if len(hist) > 20:
+                        hist['20MA'] = hist['Close'].rolling(window=20).mean()
+                        hist['20V_MA'] = hist['Volume'].rolling(window=20).mean()
+
+                        latest = hist.iloc[-1]
+                        current_price = latest['Close']
+                        current_open = latest['Open']
+                        current_vol = latest['Volume']
+                        ma20 = latest['20MA']
+                        vol_ma20 = latest['20V_MA']
+
+                        is_breakout = current_price > ma20
+                        is_volume_surge = current_vol > (vol_ma20 * 2)
+                        is_red_candle = current_price > current_open
+
+                        if is_breakout and is_volume_surge and is_red_candle:
+                            status = "🔥 爆量突破 (符合)"
+                        else:
+                            status = "⏳ 潛伏整理"
+
+                        sniper_results.append({
+                            "股票代號": ticker,
+                            "最新收盤價": round(current_price, 2),
+                            "20日月線": round(ma20, 2),
+                            "今日成交量": f"{int(current_vol / 1000):,} 張",
+                            "量能倍數": f"{current_vol / vol_ma20:.1f} 倍",
+                            "狙擊判定": status
+                        })
+                except Exception as e:
+                    pass 
+
+        if sniper_results:
+            df_results = pd.DataFrame(sniper_results)
+            df_results = df_results.sort_values(by="狙擊判定", ascending=False)
+            
+            targets = df_results[df_results['狙擊判定'] == "🔥 爆量突破 (符合)"]
+            if len(targets) > 0:
+                st.success(f"🚨 警報！發現 {len(targets)} 檔具備飆股特徵的標的！")
+            else:
+                st.info("目前清單中尚未出現符合特徵的標的。")
+                
+            st.dataframe(df_results, use_container_width=True, hide_index=True)
