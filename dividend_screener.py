@@ -3,15 +3,44 @@ import pandas as pd
 import datetime
 import os
 
+import json
+import gspread
+from google.oauth2.service_account import Credentials
+
 # ==========================================
-# 1. 定義海巡範圍 (優質股票池)
+# 1. 雲端大腦連線與讀取「存股名單」
 # ==========================================
-stock_pool = [
-    "2886.TW", "5880.TW", "2884.TW", "2892.TW", "2885.TW", "2881.TW",
-    "2412.TW", "3045.TW", 
-    "0056.TW", "00878.TW", "00713.TW",
-    "2330.TW", "2912.TW", "5903.TW" 
-]
+stock_pool = []
+try:
+    # 建立 Google 試算表連線
+    scope = ['https://www.googleapis.com/auth/spreadsheets']
+    creds_json = os.environ.get("GCP_CREDENTIALS")
+    creds_dict = json.loads(creds_json)
+    creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
+    gc = gspread.authorize(creds)
+    
+    # 讀取你的 tactical_backpack 試算表
+    SHEET_ID = "1duoJGMw_b6xyZSeY5Gt-QfY2KfKZuOI7-Lkwjo85V0c"
+    sh = gc.open_by_key(SHEET_ID)
+    
+    print("📡 正在連接 Google 試算表獲取存股名單...")
+    ws_div = sh.worksheet("存股名單")
+    div_records = ws_div.get_all_records()
+    
+    for row in div_records:
+        t = str(row.get("代號", "")).strip()
+        if t: 
+            # 確保加上 .TW 讓 yfinance 認得是台股
+            if not t.endswith(".TW") and not t.endswith(".TWO"):
+                t += ".TW" 
+            stock_pool.append(t)
+            
+    print(f"✅ 成功載入 {len(stock_pool)} 檔存股標的！")
+    
+except Exception as e:
+    print(f"⚠️ 讀取雲端名單失敗，原因：{e}")
+    # 預防萬一連線失敗，給它一個備用的基本名單以免當機
+    stock_pool = ["2884.TW", "2891.TW", "2881.TW", "2885.TW", "00878.TW"]
 
 print(f"🚀 啟動動態存股海巡大腦！本次預計掃描 {len(stock_pool)} 檔股票...")
 golden_list = []
