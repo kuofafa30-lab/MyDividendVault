@@ -6,7 +6,8 @@ import yfinance as yf
 import requests
 import time
 
-LINE_TOKEN = os.environ.get("LINE_NOTIFY_TOKEN")
+LINE_TOKEN = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN")
+LINE_USER_ID = os.environ.get("LINE_USER_ID")
 GCP_JSON = os.environ.get("GCP_CREDENTIALS")
 
 TW_NAMES = {
@@ -22,20 +23,37 @@ def auto_tw(ticker):
     if not t: return ""
     return t if (t.endswith(".TW") or t.endswith(".TWO")) else f"{t}.TW"
 
-def send_line_notify(message):
-    url = "https://notify-api.line.me/api/notify"
-    headers = {"Authorization": f"Bearer {LINE_TOKEN}"}
-
-    # 🌟 新增重試機制 (最多嘗試 3 次)
+def send_line_message(message):
+    if not LINE_TOKEN or not LINE_USER_ID:
+        print("❌ 缺少 LINE_CHANNEL_ACCESS_TOKEN 或 LINE_USER_ID，無法發送")
+        return
+        
+    url = "https://api.line.me/v2/bot/message/push"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {LINE_TOKEN}"
+    }
+    data = {
+        "to": LINE_USER_ID,
+        "messages": [{"type": "text", "text": message}]
+    }
+    
     max_retries = 3
     for i in range(max_retries):
         try:
-            requests.post(url, headers=headers, data={"message": message})
-            return  # 發送成功就直接結束函數
-        except requests.exceptions.RequestException as e:
-            print(f"發送 Line 失敗 (第 {i+1} 次嘗試): {e}")
-            if i < max_retries - 1:
-                time.sleep(5)  # 等待 5 秒後重試
+            # 官方帳號 API 必須用 json 格式傳遞資料
+            response = requests.post(url, headers=headers, json=data)
+            if response.status_code == 200:
+                print("✅ 戰報發送成功！")
+                return
+            else:
+                print(f"發送失敗 (第 {i+1} 次嘗試): 狀態碼 {response.status_code}, 錯誤訊息: {response.text}")
+        except Exception as e:
+            print(f"發送發生例外錯誤 (第 {i+1} 次嘗試): {e}")
+            
+        if i < max_retries - 1:
+            time.sleep(5)
+            
     print("❌ 連續 3 次發送 Line 失敗，放棄執行。")
 
 msg = "\n📊 【波段戰情室】每日收盤戰報\n"
@@ -122,8 +140,7 @@ else:
     msg += "💤 今日無標的符合爆量突破條件。"
 
 # 發送通知
-if LINE_TOKEN:
-    send_line_notify(msg)
-    print("✅ 戰報發送成功！")
+if LINE_TOKEN and LINE_USER_ID:
+    send_line_message(msg)
 else:
-    print("❌ 找不到 LINE_NOTIFY_TOKEN")
+    print("❌ 找不到 LINE_CHANNEL_ACCESS_TOKEN 或 LINE_USER_ID，請檢查 Secrets 設定。")
