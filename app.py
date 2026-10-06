@@ -275,7 +275,7 @@ elif system_menu == "📈 波段戰情室 (短期動能)":
             except Exception as e:
                 st.error(f"繪圖發生錯誤：{e}")
 
-    # [分頁 2] 戰術背包 (🚀 串接 Google 試算表)
+    # [分頁 2] 戰術背包 (🚀 串接 Google 試算表)   
     with tab_bp:
         try:
             # 建立與 Google Sheets 的連線
@@ -331,35 +331,66 @@ elif system_menu == "📈 波段戰情室 (短期動能)":
                 else:
                     st.info("背包空空如也。")
 
-        # 顯示即時報價與損益
+        # =========================================
+        # ⬇️ 這裡才是剛剛升級的「即時報價與損益」區塊 ⬇️
+        # =========================================
         if not df_bp.empty:
             bp_results = []
             with st.spinner("抓取庫存即時報價..."):
                 for index, row in df_bp.iterrows():
+                    # 1. 確保防呆：不管 Google Sheets 裡有沒有寫 .TW，這裡一律強制補上
+                    raw_ticker = str(row["代號"]).strip()
+                    ticker = auto_tw(raw_ticker) 
+                    
+                    # 確保數字格式正確，避免抓到空值
                     try:
-                        ticker = row["代號"]
                         cost = float(row["買進成本"])
                         qty = int(row.get("股數", 1000))
-                        
+                    except:
+                        cost, qty = 0.0, 1000
+
+                    # 取得中文名稱
+                    ch_name_bp = TW_NAMES.get(ticker, ticker.replace(".TW", ""))
+                    display_name = f"{ch_name_bp} ({ticker})"
+
+                    try:
                         stk = yf.Ticker(ticker)
-                        curr_price = stk.fast_info['last_price']
+                        # 抓取近一個月歷史資料，為了同時拿最新價與算 20MA
+                        hist = stk.history(period="1mo")
                         
-                        pnl_pct = ((curr_price / cost) - 1) * 100
-                        pnl_amt = (curr_price - cost) * qty
-                        
-                        ch_name_bp = TW_NAMES.get(ticker, ticker.replace(".TW", ""))
-                        
+                        if not hist.empty:
+                            curr_price = hist['Close'].iloc[-1]
+                            # 計算 20MA 防守點位 (若上市天數不足20天，則抓成本的 95% 為防守線)
+                            ma20 = hist['Close'].rolling(window=20).mean().iloc[-1] if len(hist) >= 20 else cost * 0.95
+                            
+                            pnl_pct = ((curr_price / cost) - 1) * 100
+                            pnl_amt = (curr_price - cost) * qty
+                            
+                            bp_results.append({
+                                "名稱 (代號)": display_name,
+                                "股數": f"{qty:,}",
+                                "買進均價": f"{cost:.2f}",
+                                "最新現價": f"{curr_price:.2f}",
+                                "未實現損益(元)": f"{pnl_amt:+,.0f}",
+                                "報酬率(%)": f"{pnl_pct:+.2f}%",
+                                "防守點位(月線)": f"{ma20:.2f}"
+                            })
+                        else:
+                            raise ValueError("無報價資料")
+                            
+                    except Exception as e:
+                        # 2. 欄位固定機制：即使報價失敗，也要把所有欄位印出來，表格才不會縮水
                         bp_results.append({
-                            "名稱 (代號)": f"{ch_name_bp}",
+                            "名稱 (代號)": display_name,
                             "股數": f"{qty:,}",
                             "買進均價": f"{cost:.2f}",
-                            "最新現價": f"{curr_price:.2f}",
-                            "未實現損益(元)": f"{pnl_amt:+,.0f}",
-                            "報酬率(%)": f"{pnl_pct:+.2f}%"
+                            "最新現價": "報價失敗",
+                            "未實現損益(元)": "-",
+                            "報酬率(%)": "-",
+                            "防守點位(月線)": "-"
                         })
-                    except Exception as e:
-                        bp_results.append({"名稱 (代號)": ticker, "買進均價": cost, "最新現價": "報價失敗"})
             
+            # 使用專業的 DataFrame 顯示，並隱藏左側索引值
             st.dataframe(pd.DataFrame(bp_results), use_container_width=True, hide_index=True)
         else:
             st.info("背包目前沒有任何庫存。")
