@@ -25,7 +25,7 @@ try:
     
     print("📡 正在連接 Google 試算表獲取存股名單...")
     ws_div = sh.worksheet("存股名單")
-    div_records = ws_div.get_all_records()
+    div_records = ws_div.get_all_records(numericise_ignore=["代號"])
     
     for row in div_records:
         t = str(row.get("代號", "")).strip()
