@@ -1,7 +1,7 @@
 name: 存股海巡探測器
 
 on:
-  workflow_dispatch: # 保留手動按鈕，讓你隨時想按都可以！
+  workflow_dispatch: # 保留手動按鈕
   schedule:
     # 台灣時間每週五 14:00 (UTC 06:00) 自動執行
     - cron: '0 6 * * 5'
@@ -9,29 +9,25 @@ on:
 jobs:
   scan:
     runs-on: ubuntu-latest
-    # ... (下方的 steps 維持原樣完全不用動！)
-
-jobs:
-  scan:
-    runs-on: ubuntu-latest
     steps:
-    - name: 取得金庫程式碼
-      uses: actions/checkout@v3
+      - name: 取得金庫程式碼
+        uses: actions/checkout@v3
 
-    - name: 安裝 Python 與套件
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.10'
-    - run: pip install -r requirements.txt
+      - name: 安裝 Python 與套件
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
 
-    - name: 啟動海巡大腦 (執行 Python)
-      run: python dividend_screener.py
+      - run: pip install -r requirements.txt
 
-    - name: 將黃金名單存回 GitHub (Commit)
-      run: |
-        git config --local user.name "github-actions[bot]"
-        git config --local user.email "github-actions[bot]@users.noreply.github.com"
-        git add golden_list.csv
-        # 如果名單有更新就存檔，沒更新就印出提示
-        git commit -m "🤖 海巡完成：更新黃金名單" || echo "名單無變動"
-        git push
+      - name: 啟動海巡大腦 (執行 Python)
+        run: python dividend_screener.py
+
+      - name: 將黃金名單存回 GitHub (Commit)
+        run: |
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git add golden_list.csv
+          # 如果名單有更新就存檔，沒更新就印出提示
+          git commit -m "🤖 海巡完成：更新黃金名單" || echo "名單無變動"
+          git push
