@@ -79,6 +79,8 @@ try:
         df_radar = pd.DataFrame(columns=["代號"])
     else:
         df_radar = df_radar.dropna(how="all")
+        if "代號" in df_radar.columns:
+            df_radar["代號"] = df_radar["代號"].astype(str).str.replace(r'\.0$', '', regex=True)
 
     # 顯示目前監控數量
     st.sidebar.write(f"📋 目前監控中：{len(df_radar)} 檔標的")
