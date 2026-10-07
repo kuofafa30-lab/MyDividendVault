@@ -347,7 +347,7 @@ elif system_menu == "📈 波段戰情室 (短期動能)":
             else:
                 df_bp = df_bp.dropna(how="all") # 清除完全空白的行
                 if "代號" in df_bp.columns:
-            df_bp["代號"] = df_bp["代號"].astype(str).str.replace(r'\.0$', '', regex=True)
+                    df_bp["代號"] = df_bp["代號"].astype(str).str.replace(r'\.0$', '', regex=True)
                 
         except Exception as e:
             st.error(f"連線 Google 試算表失敗，請檢查 Secrets 權限或網路：{e}")
