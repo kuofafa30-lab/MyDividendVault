@@ -245,47 +245,6 @@ elif system_menu == "📈 波段戰情室 (短期動能)":
     raw_target = st.sidebar.text_input("🔍 查詢代號 (免加 .tw，如 3008)：", "3008")
     selected_target = auto_tw(raw_target)
 
-    st.sidebar.write("---")
-    st.sidebar.subheader("🚀 批次雷達掃描")
-    default_radar = "2330, 2317, 2454, 3231, 2382, 2603, 3008"
-    user_radar = st.sidebar.text_area("觀察清單 (逗號分隔)：", default_radar)
-    
-    if st.sidebar.button("啟動爆量突破雷達", type="primary"):
-        ticker_list = [auto_tw(t) for t in user_radar.split(",") if t.strip()]
-        sniper_results = []
-
-        with st.sidebar.status("雷達掃描中..."):
-            for ticker in ticker_list:
-                try:
-                    hist = yf.Ticker(ticker).history(period="3mo")
-                    if len(hist) > 20:
-                        hist['20MA'] = hist['Close'].rolling(window=20).mean()
-                        hist['20V_MA'] = hist['Volume'].rolling(window=20).mean()
-
-                        latest = hist.iloc[-1]
-                        current_price, current_open, current_vol = latest['Close'], latest['Open'], latest['Volume']
-                        ma20, vol_ma20 = latest['20MA'], latest['20V_MA']
-
-                        is_breakout = current_price > ma20
-                        is_volume_surge = current_vol > (vol_ma20 * 2)
-                        is_red_candle = current_price > current_open
-
-                        status = "🔥 爆量" if (is_breakout and is_volume_surge and is_red_candle) else "⏳ 潛伏"
-
-                        ch_name_radar = TW_NAMES.get(ticker, ticker.replace(".TW", ""))
-                        sniper_results.append({
-                            "名稱(代號)": ch_name_radar,
-                            "判定": status,
-                            "現價": round(current_price, 2)
-                        })
-                except Exception as e:
-                    pass 
-
-        if sniper_results:
-            df_results = pd.DataFrame(sniper_results).sort_values(by="判定", ascending=False)
-            st.sidebar.success("掃描完成！")
-            st.sidebar.dataframe(df_results, use_container_width=True, hide_index=True)
-
     # --- 右側主畫面：個股 K 線與戰術背包 ---
     stock_info_b = yf.Ticker(selected_target)
     
